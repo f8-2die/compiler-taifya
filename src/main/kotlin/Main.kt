@@ -32,7 +32,7 @@ fun AppContent() {
     var analysisResults by remember { mutableStateOf<List<String>>(emptyList()) }
     var numbers by remember { mutableStateOf<List<String>>(emptyList()) }
     var identifiers by remember { mutableStateOf<List<String>>(emptyList()) }
-    var logs by remember { mutableStateOf("Ожидание команды...") }
+    var logs by remember { mutableStateOf(listOf("Ожидание команды...")) }
 
     val separators = LexicalAnalyzer.separators
     val reservedWords = LexicalAnalyzer.reservedWords
@@ -80,16 +80,26 @@ fun AppContent() {
                 }
             }
         }
-        // Нижняя часть интерфейса
-        Box(
-            modifier = Modifier.fillMaxWidth()
-                .height(80.dp)
-                .border(1.dp, Color.Gray, shape = RoundedCornerShape(8.dp))
-                .padding(8.dp),
-            contentAlignment = Alignment.CenterStart
-        ) {
-            Text(logs)
+
+        // Нижняя часть интерфейса с логами
+        BoxWithHeader(title = "Логи", modifier = Modifier.height(150.dp).fillMaxWidth()) {
+            val logListState = rememberLazyListState()
+            Row(modifier = Modifier.fillMaxSize()) {
+                LazyColumn(
+                    modifier = Modifier.weight(1f).fillMaxHeight().padding(end = 8.dp),
+                    state = logListState
+                ) {
+                    items(logs) { log ->
+                        Text(log, modifier = Modifier.padding(4.dp), color = Color.Black)
+                    }
+                }
+                VerticalScrollbar(
+                    adapter = rememberScrollbarAdapter(logListState),
+                    modifier = Modifier.fillMaxHeight()
+                )
+            }
         }
+
         Spacer(modifier = Modifier.height(16.dp))
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -97,44 +107,46 @@ fun AppContent() {
         ) {
             Button(
                 onClick = {
-                    // Очистка логов
-                    logs = "Запущен анализ...\n"
+                    logs = listOf("Запущен анализ...")
 
-                    // Очистка таблиц перед анализом
-                    analysisResults = emptyList()
-                    numbers = emptyList()
-                    identifiers = emptyList()
-
-                    //лексический анализ
+                    // Лексический анализ
                     val lexicalAnalysis = LexicalAnalyzer.analyzeText(inputText)
                     analysisResults = lexicalAnalysis["results"] ?: emptyList()
                     numbers = lexicalAnalysis["numbers"] ?: emptyList()
                     identifiers = lexicalAnalysis["identifiers"] ?: emptyList()
-                    logs += "Лексический анализ завершен успешно.\n"
+                    logs = logs + "Лексический анализ завершен успешно."
 
-                    //синтаксический анализ
-                    val syntaxLogs = SyntaxAnalyzer.analyzeProgram(
-                        analysisResults.map {
-                            val parts = it.removeSurrounding("(", ")").split(", ")
-                            Pair(parts[0].toInt(), parts[1].toInt())
-                        },
-                        reservedWords,
-                        separators,
-                        identifiers
-                    )
+                    // Преобразование результатов анализа в токены
+                    val tokens = analysisResults.map { result ->
+                        val parts = result.removeSurrounding("(", ")").split(", ")
+                        val tableNumber = parts[0].toInt()
+                        val index = parts[1].toInt()
 
-                    //логи синтаксического анализа
-                    syntaxLogs.forEach { log ->
-                        logs += "$log\n"
+                        when (tableNumber) {
+                            1 -> Token(LexicalAnalyzer.reservedWords[index - 1], TokenType.KEYWORD)
+                            2 -> Token(LexicalAnalyzer.separators[index - 1], TokenType.SYMBOL)
+                            4 -> Token(LexicalAnalyzer.identifiers[index - 1], TokenType.IDENTIFIER)
+                            else -> throw IllegalArgumentException("Неизвестная таблица: $tableNumber")
+                        }
+                    }
+
+                    // Синтаксический анализ
+                    try {
+                        val syntaxAnalyzer = SyntaxAnalyzer(tokens)
+                        logs = logs + syntaxAnalyzer.analyze()
+                    } catch (e: Exception) {
+                        logs = logs + "Ошибка синтаксического анализа: ${e.message}"
                     }
                 },
                 modifier = Modifier.width(150.dp).height(50.dp)
             ) {
                 Text("Анализ")
             }
+
         }
     }
 }
+
 
 @Composable
 fun TableWithHeader(title: String, items: List<String>, modifier: Modifier = Modifier) {

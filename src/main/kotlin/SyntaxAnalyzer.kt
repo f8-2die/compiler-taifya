@@ -1,159 +1,116 @@
-object SyntaxAnalyzer {
+class SyntaxAnalyzer(private val tokens: List<Token>) {
 
-    private val logs = mutableListOf<String>()
+    private var currentIndex = 0
 
-    private fun logError(message: String) {
-        logs.add("Ошибка: $message")
-    }
+    fun analyze(): List<String> {
+        val logs = mutableListOf<String>()
 
-    private fun logSuccess(message: String) {
-        logs.add("Успешно: $message")
-    }
-
-    fun analyzeProgram(lexemes: List<Pair<Int, Int>>, reservedWords: List<String>, separators: List<String>, identifiers: List<String>): List<String> {
-        logs.clear()
-
-        var index = 0
-
-        if (getLexeme(lexemes[index], reservedWords, separators, identifiers) != "begin") {
-            logError("Программа должна начинаться с 'begin'.")
+        if (tokens.isEmpty()) {
+            logs.add("Программа пуста.")
             return logs
         }
-        logSuccess("Программа начинается с 'begin'.")
-        index++
 
-        while (index < lexemes.size) {
-            val lexeme = getLexeme(lexemes[index], reservedWords, separators, identifiers)
-            when (lexeme) {
-                "dim" -> index = analyzeDeclaration(lexemes, index, identifiers) ?: return logs
-                "if" -> index = analyzeConditional(lexemes, index) ?: return logs
-                "for" -> index = analyzeFixedCycle(lexemes, index) ?: return logs
-                "do" -> index = analyzeConditionalCycle(lexemes, index) ?: return logs
-                "end" -> {
-                    logSuccess("Программа успешно завершена 'end'.")
-                    return logs
-                }
-                else -> {
-                    logError("Неизвестный оператор или структура '$lexeme'.")
-                    return logs
+        try {
+            if (!consume("begin")) {
+                throw SyntaxException("Программа должна начинаться с 'begin'.")
+            }
+            logs.add("Начало программы найдено.")
+
+            while (!check("end")) {
+                if (checkType()) {
+                    logs.add(parseTypeDeclaration())
+                } else if (checkIdentifier()) {
+                    logs.add(parseAssignment())
+                } else if (check("dim")) {
+                    logs.add(parseDescription())
+                } else {
+                    throw SyntaxException("Неожиданный токен: ${currentToken().value}.")
                 }
             }
-            index++
-        }
 
-        logError("Программа должна заканчиваться 'end'.")
+            if (!consume("end")) {
+                throw SyntaxException("Программа должна заканчиваться 'end'.")
+            }
+            logs.add("Конец программы найден. Синтаксический анализ успешно завершен.")
+
+        } catch (e: SyntaxException) {
+            logs.add("Ошибка: ${e.message}")
+        }
         return logs
     }
 
-    private fun getLexeme(pair: Pair<Int, Int>, reservedWords: List<String>, separators: List<String>, identifiers: List<String>): String {
-        return when (pair.first) {
-            1 -> reservedWords[pair.second - 1]
-            2 -> separators[pair.second - 1]
-            4 -> identifiers[pair.second - 1]
-            else -> "Неизвестная лексема"
-        }
-    }
+    private fun currentToken(): Token = tokens[currentIndex]
 
-    private fun analyzeDeclaration(lexemes: List<Pair<Int, Int>>, index: Int, identifiers: List<String>): Int? {
-        var currentIndex = index + 1
-        if (currentIndex >= lexemes.size || getLexeme(lexemes[currentIndex], listOf(), listOf(), identifiers).isEmpty()) {
-            logError("После 'dim' должен идти идентификатор.")
-            return null
-        }
-
-        while (currentIndex < lexemes.size) {
-            val lexeme = getLexeme(lexemes[currentIndex], listOf(), listOf(), identifiers)
-            if (lexeme == ",") {
-                currentIndex++
-                if (currentIndex >= lexemes.size || getLexeme(lexemes[currentIndex], listOf(), listOf(), identifiers).isEmpty()) {
-                    logError("После ',' должен идти идентификатор.")
-                    return null
-                }
-            } else if (lexeme in listOf("%", "!", "$")) {
-                logSuccess("Описание данных корректно.")
-                return currentIndex
-            } else {
-                break
-            }
+    private fun consume(expected: String): Boolean {
+        if (currentIndex < tokens.size && tokens[currentIndex].value == expected) {
             currentIndex++
+            return true
         }
-
-        logError("Описание данных должно заканчиваться типом данных ('%', '!', '$').")
-        return null
+        return false
     }
 
-    private fun analyzeConditional(lexemes: List<Pair<Int, Int>>, index: Int): Int? {
-        var currentIndex = index + 1
+    private fun check(expected: String): Boolean =
+        currentIndex < tokens.size && tokens[currentIndex].value == expected
 
-        if (currentIndex >= lexemes.size || !isValidExpression(lexemes, currentIndex)) {
-            logError("После 'if' должно идти выражение.")
-            return null
-        }
+    private fun checkType(): Boolean =
+        currentIndex < tokens.size && listOf("%", "!", "$").contains(tokens[currentIndex].value)
 
+    private fun checkIdentifier(): Boolean =
+        currentIndex < tokens.size && tokens[currentIndex].type == TokenType.IDENTIFIER
+
+    private fun parseTypeDeclaration(): String {
+        val type = currentToken().value
         currentIndex++
-        if (currentIndex >= lexemes.size || getLexeme(lexemes[currentIndex], listOf(), listOf(), listOf()) != "then") {
-            logError("После выражения в 'if' должен быть 'then'.")
-            return null
+        if (!checkIdentifier()) {
+            throw SyntaxException("Ожидался идентификатор после типа.")
         }
-
+        val identifier = currentToken().value
         currentIndex++
-        if (currentIndex >= lexemes.size) {
-            logError("После 'then' должен идти оператор.")
-            return null
-        }
-
-        logSuccess("Условный оператор корректен.")
-        return currentIndex
+        return "Объявлена переменная: $identifier с типом $type."
     }
 
-    private fun analyzeFixedCycle(lexemes: List<Pair<Int, Int>>, index: Int): Int? {
-        var currentIndex = index + 1
-        if (currentIndex >= lexemes.size || getLexeme(lexemes[currentIndex], listOf(), listOf(), listOf()) != "(") {
-            logError("После 'for' должна быть '('.")
-            return null
-        }
+    private fun parseAssignment(): String {
+        val identifier = currentToken().value
         currentIndex++
+        if (!consume(":=")) {
+            throw SyntaxException("Ожидался оператор присваивания ':=' после идентификатора.")
+        }
+        if (!checkIdentifier()) {
+            throw SyntaxException("Ожидался идентификатор или значение после ':='.")
+        }
+        val value = currentToken().value
+        currentIndex++
+        return "Присваивание: $identifier := $value."
+    }
 
-        var semicolonCount = 0
-        while (currentIndex < lexemes.size) {
-            val lexeme = getLexeme(lexemes[currentIndex], listOf(), listOf(), listOf())
-            if (lexeme == ";") {
-                semicolonCount++
-            } else if (lexeme == ")") {
-                if (semicolonCount == 2) {
-                    logSuccess("Фиксированный цикл корректен.")
-                    return currentIndex
-                } else {
-                    logError("В 'for' должно быть 2 ';'.")
-                    return null
-                }
+    private fun parseDescription(): String {
+        if (!consume("dim")) {
+            throw SyntaxException("Ожидалось ключевое слово 'dim'.")
+        }
+
+        val identifiers = mutableListOf<String>()
+        do {
+            if (!checkIdentifier()) {
+                throw SyntaxException("Ожидался идентификатор после 'dim'.")
             }
+            identifiers.add(currentToken().value)
             currentIndex++
+        } while (consume(","))
+
+        if (!checkType()) {
+            throw SyntaxException("Ожидался тип данных (% | ! | $) после списка идентификаторов.")
         }
-
-        logError("Фиксированный цикл должен заканчиваться ')'.")
-        return null
-    }
-
-    private fun analyzeConditionalCycle(lexemes: List<Pair<Int, Int>>, index: Int): Int? {
-        var currentIndex = index + 1
-        if (currentIndex >= lexemes.size || getLexeme(lexemes[currentIndex], listOf(), listOf(), listOf()) != "while") {
-            logError("После 'do' должен быть 'while'.")
-            return null
-        }
-
+        val type = currentToken().value
         currentIndex++
-        if (currentIndex >= lexemes.size || !isValidExpression(lexemes, currentIndex)) {
-            logError("После 'while' должно быть выражение.")
-            return null
-        }
 
-        logSuccess("Условный цикл корректен.")
-        return currentIndex
+        return "Объявлены переменные: ${identifiers.joinToString(", ")} с типом $type."
     }
+}
 
-    private fun isValidExpression(lexemes: List<Pair<Int, Int>>, index: Int): Boolean {
-        // Здесь будут правила для проверки выражений
-        return true
-    }
+class SyntaxException(message: String) : Exception(message)
+
+data class Token(val value: String, val type: TokenType)
+
+enum class TokenType {
+    IDENTIFIER, KEYWORD, NUMBER, SYMBOL
 }

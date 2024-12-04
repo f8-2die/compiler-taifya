@@ -12,7 +12,7 @@ object LexicalAnalyzer {
 
     private val results = mutableListOf<String>()
     private val numbers = mutableListOf<String>()
-    private val identifiers = mutableListOf<String>()
+    val identifiers = mutableListOf<String>()
 
     private fun clearTables() {
         results.clear()
@@ -78,6 +78,7 @@ object LexicalAnalyzer {
         }
     }
 
+    // Лексический анализ
     fun analyzeText(inputText: String): Map<String, List<String>> {
         clearTables()
         nill()
@@ -151,7 +152,11 @@ object LexicalAnalyzer {
                     currentChar?.isLetterOrDigit() == true || currentChar == '_' -> add(currentChar)
                     else -> {
                         val z = look(reservedWords)
-                        if (z != 0) out(1, z) else out(4, put(identifiers))
+                        if (z != 0) out(1, z) else {
+                            val pos = put(identifiers)
+                            println("Идентификатор добавлен в таблицу: ${identifiers[pos - 1]}")
+                            out(4, pos)
+                        }
                         state = "H"
                         position--
                     }
@@ -159,9 +164,7 @@ object LexicalAnalyzer {
 
                 "NUM" -> when {
                     currentChar?.isDigit() == true || currentChar == '.' || currentChar in listOf('b', 'o', 'h') -> currentChar?.let {
-                        add(
-                            it
-                        )
+                        add(it)
                     }
                     else -> {
                         val number = buffer.toString()
@@ -205,5 +208,6 @@ object LexicalAnalyzer {
             "identifiers" to identifiers
         )
     }
+
 
 }
