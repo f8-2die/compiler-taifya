@@ -107,22 +107,15 @@ object LexicalAnalyzer {
                         insideComment = true
                         position++
                     }
-                    separators.any { it.startsWith(currentChar.toString()) } -> {
-                        val twoCharSeparator = if (position + 1 < inputText.length) {
-                            separators.find { it == inputText.substring(position, position + 2) }
-                        } else null
+                    separators.any { inputText.substring(position).startsWith(it) } -> {
+                        val separator = separators.find { inputText.substring(position).startsWith(it) }
 
-                        if (twoCharSeparator != null) {
-                            val positionInTable = separators.indexOf(twoCharSeparator) + 1
+                        if (separator != null) {
+                            val positionInTable = separators.indexOf(separator) + 1
                             out(2, positionInTable)
-                            position++
+                            position += separator.length - 1 // Сдвигаем позицию на длину разделителя
                         } else {
-                            val positionInTable = separators.indexOf(currentChar.toString()) + 1
-                            if (positionInTable > 0) {
-                                out(2, positionInTable)
-                            } else {
-                                results.add("Ошибка на символе: $currentChar")
-                            }
+                            results.add("Ошибка на символе: $currentChar")
                         }
                     }
                     currentChar in listOf('%', '!', '$') -> {
@@ -148,14 +141,22 @@ object LexicalAnalyzer {
                     }
                 }
 
+
                 "I" -> when {
                     currentChar?.isLetterOrDigit() == true || currentChar == '_' -> add(currentChar)
                     else -> {
-                        val z = look(reservedWords)
-                        if (z != 0) out(1, z) else {
+                        val bufferContent = buffer.toString()
+                        val reservedIndex = look(reservedWords)
+                        val separatorIndex = look(separators)
+
+                        if (reservedIndex != 0) {
+                            out(1, reservedIndex) // Ключевое слово
+                        } else if (separatorIndex == 0) { // Если это не разделитель
                             val pos = put(identifiers)
                             println("Идентификатор добавлен в таблицу: ${identifiers[pos - 1]}")
                             out(4, pos)
+                        } else {
+                            results.add("Ошибка: нераспознанное слово $bufferContent")
                         }
                         state = "H"
                         position--
@@ -208,6 +209,5 @@ object LexicalAnalyzer {
             "identifiers" to identifiers
         )
     }
-
 
 }
