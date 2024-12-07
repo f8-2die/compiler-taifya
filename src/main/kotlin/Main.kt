@@ -125,10 +125,12 @@ fun AppContent() {
                         when (tableNumber) {
                             1 -> Token(LexicalAnalyzer.reservedWords[index - 1], TokenType.KEYWORD)
                             2 -> Token(LexicalAnalyzer.separators[index - 1], TokenType.SYMBOL)
+                            3 -> Token(LexicalAnalyzer.numbers[index - 1], TokenType.NUMBER) // Добавляем обработку чисел
                             4 -> Token(LexicalAnalyzer.identifiers[index - 1], TokenType.IDENTIFIER)
                             else -> throw IllegalArgumentException("Неизвестная таблица: $tableNumber")
                         }
                     }
+
 
                     // Синтаксический анализ
                     try {
