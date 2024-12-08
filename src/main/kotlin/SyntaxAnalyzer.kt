@@ -9,6 +9,10 @@ class SyntaxAnalyzer(private val tokens: List<Token>) {
             logs.add("Программа пуста.")
             return logs
         }
+        if (tokens.last().value != "end") {
+            logs.add("Ошибка: Программа должна заканчиваться 'end'.")
+            return logs
+        }
 
         try {
             if (!consume("begin")) {
@@ -18,6 +22,7 @@ class SyntaxAnalyzer(private val tokens: List<Token>) {
 
             while (!check("end")) {
                 println("Текущий токен: ${currentToken().value}") // Лог текущего токена
+
                 if (checkType()) {
                     logs.add(parseTypeDeclaration())
                 } else if (check("let") || checkIdentifier()) {
@@ -32,10 +37,19 @@ class SyntaxAnalyzer(private val tokens: List<Token>) {
                     logs.add(parseForLoop())
                 } else if (check("do")) {
                     logs.add(parseDoWhileLoop())
+                } else if (check("input")) {
+                    logs.add(parseInput())
+                } else if (check("output")) {
+                    logs.add(parseOutput())
                 } else {
                     throw SyntaxException("Неожиданный токен: ${currentToken().value}.")
                 }
+
+                if (check(";")) {
+                    consume(";")
+                }
             }
+
 
             if (!consume("end")) {
                 throw SyntaxException("Программа должна заканчиваться 'end'.")
@@ -76,7 +90,7 @@ class SyntaxAnalyzer(private val tokens: List<Token>) {
 
     private fun parseTypeDeclaration(): String {
         val type = currentToken().value
-        println("Парсинг типа: $type") // Лог
+        println("Парсинг типа: $type")
         currentIndex++
         if (!checkIdentifier()) {
             throw SyntaxException("Ожидался идентификатор после типа.")
@@ -147,6 +161,9 @@ class SyntaxAnalyzer(private val tokens: List<Token>) {
         } else if (checkNumber()) {
             expression.append(currentToken().value)
             currentIndex++
+        } else if (check("true") || check("false")) { // Добавить обработку булевых значений
+            expression.append(currentToken().value)
+            currentIndex++
         } else {
             throw SyntaxException("Неверное выражение: ${currentToken().value}")
         }
@@ -171,10 +188,19 @@ class SyntaxAnalyzer(private val tokens: List<Token>) {
         if (!consume("then")) {
             throw SyntaxException("Ожидалось 'then'.")
         }
+        if (!condition.contains("true") && !condition.contains("false") && !condition.contains("not") &&
+            !condition.contains("or") && !condition.contains("and") && !condition.contains("<") &&
+            !condition.contains(">") && !condition.contains("=")
+        ) {
+            throw SyntaxException("Условие должно быть булевым.")
+        }
         val thenBranch = parseOperator()
+        consume(";")
+
         var elseBranch = ""
         if (consume("else")) {
             elseBranch = parseOperator()
+            consume(";")
         }
         if (!consume("end_else")) {
             throw SyntaxException("Ожидалось 'end_else'.")
@@ -182,22 +208,65 @@ class SyntaxAnalyzer(private val tokens: List<Token>) {
         return "Условный оператор: if $condition then $thenBranch else $elseBranch"
     }
 
+
     private fun parseOperator(): String {
-        return when {
-            checkIdentifier() -> parseAssignment()
+        val result = when {
+            check("let") || checkIdentifier() -> parseAssignment()
             check("if") -> parseIfStatement()
             check("{") -> parseCompoundOperator()
             check("for") -> parseForLoop()
             check("do") -> parseDoWhileLoop()
+            check("input") -> parseInput()
+            check("output") -> parseOutput()
             else -> throw SyntaxException("Ожидался оператор.")
         }
+        consume(";")
+        return result
+    }
+
+    private fun parseInput(): String {
+        if (!consume("input")) {
+            throw SyntaxException("Ожидалось 'input'.")
+        }
+        if (!consume("(")) {
+            throw SyntaxException("Ожидалась '('.")
+        }
+        val identifiers = mutableListOf<String>()
+        do {
+            if (!checkIdentifier()) {
+                throw SyntaxException("Ожидался идентификатор в операторе ввода.")
+            }
+            identifiers.add(currentToken().value)
+            currentIndex++
+        } while (consume(","))
+        if (!consume(")")) {
+            throw SyntaxException("Ожидалась ')'.")
+        }
+        return "Оператор ввода: ${identifiers.joinToString(", ")}"
+    }
+
+    private fun parseOutput(): String {
+        if (!consume("output")) {
+            throw SyntaxException("Ожидалось 'output'.")
+        }
+        if (!consume("(")) {
+            throw SyntaxException("Ожидалась '('.")
+        }
+        val expressions = mutableListOf<String>()
+        do {
+            expressions.add(parseExpression())
+        } while (consume(","))
+        if (!consume(")")) {
+            throw SyntaxException("Ожидалась ')'.")
+        }
+        return "Оператор вывода: ${expressions.joinToString(", ")}"
     }
 
     private fun parseForLoop(): String {
         if (!consume("for")) {
             throw SyntaxException("Ожидалось 'for'.")
         }
-        println("Обработка цикла for") // Лог
+        println("Обработка цикла for")
 
         if (!consume("(")) {
             throw SyntaxException("Ожидалась '('.")
@@ -225,7 +294,7 @@ class SyntaxAnalyzer(private val tokens: List<Token>) {
             throw SyntaxException("Ожидалось '{' после заголовка цикла.")
         }
         val body = parseCompoundOperator()
-        println("Тело цикла: $body") // Лог
+        println("Тело цикла: $body")
 
         return "Цикл for: ($initExpression; $conditionExpression; $updateExpression) $body"
     }
@@ -237,18 +306,20 @@ class SyntaxAnalyzer(private val tokens: List<Token>) {
         println("Обработка составного оператора") // Лог
 
         val operators = mutableListOf<String>()
-        while (!check("}")) { // Проверяем, не достигли ли мы закрывающей скобки
+        while (!check("}")) {
             when {
                 checkIdentifier() || check("let") -> operators.add(parseAssignment())
                 check("if") -> operators.add(parseIfStatement())
                 check("for") -> operators.add(parseForLoop())
                 check("do") -> operators.add(parseDoWhileLoop())
+                check("input") -> operators.add(parseInput())
+                check("output") -> operators.add(parseOutput())
                 else -> throw SyntaxException("Ожидался оператор в теле составного оператора, но найден: ${currentToken().value}")
             }
             if (!check(";") && !check("}")) {
                 throw SyntaxException("Ожидался ';' или '}' после оператора.")
             }
-            consume(";") // Пропускаем `;` после каждого оператора
+            consume(";")
         }
 
         if (!consume("}")) {
@@ -256,7 +327,6 @@ class SyntaxAnalyzer(private val tokens: List<Token>) {
         }
         return "Составной оператор: ${operators.joinToString("; ")}"
     }
-
 
     private fun parseDoWhileLoop(): String {
         if (!consume("do")) {

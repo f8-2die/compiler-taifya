@@ -2,8 +2,10 @@ object LexicalAnalyzer {
     val reservedWords: List<String> = listOf(
         "begin", "end", "dim", "let", "if", "then", "else",
         "end_else", "for", "do", "input", "output", "while",
-        "%", "!", "$", "loop"
+        "%", "!", "$", "loop", "true", "false"
     )
+
+
 
     val separators: List<String> = listOf(
         "<>", "=", "<", "<=", ">", ">=", "+", "-", "*", "/", ";", ",",
@@ -78,7 +80,6 @@ object LexicalAnalyzer {
         }
     }
 
-    // Лексический анализ
     fun analyzeText(inputText: String): Map<String, List<String>> {
         clearTables()
         nill()
@@ -150,8 +151,8 @@ object LexicalAnalyzer {
                         val separatorIndex = look(separators)
 
                         if (reservedIndex != 0) {
-                            out(1, reservedIndex) // Ключевое слово
-                        } else if (separatorIndex == 0) { // Если это не разделитель
+                            out(1, reservedIndex)
+                        } else if (separatorIndex == 0) {
                             val pos = put(identifiers)
                             println("Идентификатор добавлен в таблицу: ${identifiers[pos - 1]}")
                             out(4, pos)
@@ -164,29 +165,31 @@ object LexicalAnalyzer {
                 }
 
                 "NUM" -> when {
-                    currentChar?.isDigit() == true || currentChar == '.' || currentChar in listOf('b', 'o', 'h') -> currentChar?.let {
-                        add(it)
+                    currentChar?.isDigit() == true -> add(currentChar)
+                    currentChar == '.' -> {
+                        if (buffer.contains(".")) {
+                            results.add("Ошибка: некорректное число $buffer$currentChar.")
+                            state = "H"
+                            position--
+                        } else {
+                            add(currentChar) // Добавляем точку, если её ещё не было
+                        }
                     }
                     else -> {
                         val number = buffer.toString()
-                        val (isValid, base) = when {
-                            isValidNumber(number, 2) -> true to 2
-                            isValidNumber(number, 8) -> true to 8
-                            isValidNumber(number, 16) -> true to 16
-                            isValidNumber(number, 10) -> true to 10
-                            else -> false to 10
-                        }
+                        val isInteger = number.matches(Regex("\\d+"))
+                        val isReal = number.matches(Regex("\\d+\\.\\d+")) // Числа с точкой
 
-                        if (isValid) {
-                            val decimal = when (base) {
-                                2 -> number.dropLast(1).replace(".", "").toInt(2).toDouble()
-                                8 -> number.dropLast(1).replace(".", "").toInt(8).toDouble()
-                                16 -> number.dropLast(1).replace(".", "").toInt(16).toDouble()
-                                else -> number.toDouble()
+                        if (isInteger) {
+                            val representation = "число $number (%) 10-ричное в двоичном виде выглядит как ${number.toInt().toString(2)}"
+                            if (!numbers.contains(representation)) {
+                                numbers.add(representation)
                             }
-
+                            out(3, numbers.indexOf(representation) + 1)
+                        } else if (isReal) {
+                            val decimal = number.toDouble()
                             val binary = toBinaryWithFraction(decimal)
-                            val representation = "число $decimal $base-ричное в двоичном виде выглядит как $binary"
+                            val representation = "число $decimal (!) 10-ричное в двоичном виде выглядит как $binary"
                             if (!numbers.contains(representation)) {
                                 numbers.add(representation)
                             }
@@ -209,5 +212,4 @@ object LexicalAnalyzer {
             "identifiers" to identifiers
         )
     }
-
 }

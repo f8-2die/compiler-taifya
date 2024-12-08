@@ -34,26 +34,29 @@ fun AppContent() {
     var identifiers by remember { mutableStateOf<List<String>>(emptyList()) }
     var logs by remember { mutableStateOf(listOf("Ожидание команды...")) }
 
+    var showErrorDialog by remember { mutableStateOf(false) }
+    var errorDialogMessage by remember { mutableStateOf("") }
+
     val separators = LexicalAnalyzer.separators
     val reservedWords = LexicalAnalyzer.reservedWords
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
         Row(modifier = Modifier.weight(1f).padding(bottom = 16.dp)) {
-            // Левая колонка с двумя таблицами
+            // Левая колонка с таблицами
             Column(modifier = Modifier.weight(1f).fillMaxHeight().padding(end = 16.dp)) {
                 TableWithHeader(title = "Таблица служебных слов", items = reservedWords, modifier = Modifier.weight(1f))
                 Spacer(modifier = Modifier.height(16.dp))
                 TableWithHeader(title = "Таблица разделителей", items = separators, modifier = Modifier.weight(1f))
             }
 
-            // Правая колонка с двумя таблицами
+            // Правая колонка с таблицами
             Column(modifier = Modifier.weight(1f).fillMaxHeight().padding(end = 16.dp)) {
                 TableWithHeader(title = "Таблица чисел", items = numbers, modifier = Modifier.weight(1f))
                 Spacer(modifier = Modifier.height(16.dp))
                 TableWithHeader(title = "Таблица идентификаторов", items = identifiers, modifier = Modifier.weight(1f))
             }
 
-            // Центральная область для текста и результатов
+            // Центральная область
             Column(modifier = Modifier.weight(2f).fillMaxHeight()) {
                 BoxWithHeader(title = "Исходный текст", modifier = Modifier.weight(1f)) {
                     BasicTextField(
@@ -81,7 +84,7 @@ fun AppContent() {
             }
         }
 
-        // Нижняя часть интерфейса с логами
+        // Логи
         BoxWithHeader(title = "Логи", modifier = Modifier.height(150.dp).fillMaxWidth()) {
             val logListState = rememberLazyListState()
             Row(modifier = Modifier.fillMaxSize()) {
@@ -109,35 +112,48 @@ fun AppContent() {
                 onClick = {
                     logs = listOf("Запущен анализ...")
 
-                    // Лексический анализ
-                    val lexicalAnalysis = LexicalAnalyzer.analyzeText(inputText)
-                    analysisResults = lexicalAnalysis["results"] ?: emptyList()
-                    numbers = lexicalAnalysis["numbers"] ?: emptyList()
-                    identifiers = lexicalAnalysis["identifiers"] ?: emptyList()
-                    logs = logs + "Лексический анализ завершен успешно."
-
-                    // Преобразование результатов анализа в токены
-                    val tokens = analysisResults.map { result ->
-                        val parts = result.removeSurrounding("(", ")").split(", ")
-                        val tableNumber = parts[0].toInt()
-                        val index = parts[1].toInt()
-
-                        when (tableNumber) {
-                            1 -> Token(LexicalAnalyzer.reservedWords[index - 1], TokenType.KEYWORD)
-                            2 -> Token(LexicalAnalyzer.separators[index - 1], TokenType.SYMBOL)
-                            3 -> Token(LexicalAnalyzer.numbers[index - 1], TokenType.NUMBER) // Добавляем обработку чисел
-                            4 -> Token(LexicalAnalyzer.identifiers[index - 1], TokenType.IDENTIFIER)
-                            else -> throw IllegalArgumentException("Неизвестная таблица: $tableNumber")
-                        }
-                    }
-
-
-                    // Синтаксический анализ
                     try {
+                        // Лексический анализ
+                        val lexicalAnalysis = LexicalAnalyzer.analyzeText(inputText)
+                        analysisResults = lexicalAnalysis["results"]?.toList() ?: emptyList()
+                        numbers = lexicalAnalysis["numbers"]?.toList() ?: emptyList()
+                        identifiers = lexicalAnalysis["identifiers"]?.toList() ?: emptyList()
+                        logs = logs + "Лексический анализ завершен успешно."
+
+                        // Преобразование результатов анализа в токены
+                        val tokens = analysisResults.map { result ->
+                            val parts = result.removeSurrounding("(", ")").split(", ")
+                            val tableNumber = parts[0].toInt()
+                            val index = parts[1].toInt()
+
+                            when (tableNumber) {
+                                1 -> Token(LexicalAnalyzer.reservedWords[index - 1], TokenType.KEYWORD)
+                                2 -> Token(LexicalAnalyzer.separators[index - 1], TokenType.SYMBOL)
+                                3 -> Token(LexicalAnalyzer.numbers[index - 1], TokenType.NUMBER)
+                                4 -> Token(LexicalAnalyzer.identifiers[index - 1], TokenType.IDENTIFIER)
+                                else -> throw IllegalArgumentException("Неизвестная таблица: $tableNumber")
+                            }
+                        }
+
+                        // Синтаксический анализ
                         val syntaxAnalyzer = SyntaxAnalyzer(tokens)
                         logs = logs + syntaxAnalyzer.analyze()
+
+                        // Семантический анализ
+                        val semanticAnalyzer = SemanticAnalyzer(tokens)
+                        val semanticLogs = semanticAnalyzer.analyze()
+                        logs = logs + semanticLogs
+
+                        // Проверка на ошибки
+                        val errors = logs.filter { it.contains("Ошибка") }
+                        if (errors.isNotEmpty()) {
+                            errorDialogMessage = errors.joinToString("\n")
+                            showErrorDialog = true
+                        }
                     } catch (e: Exception) {
-                        logs = logs + "Ошибка синтаксического анализа: ${e.message}"
+                        logs = logs + "Ошибка анализа: ${e.message}"
+                        errorDialogMessage = "Ошибка анализа: ${e.message}"
+                        showErrorDialog = true
                     }
                 },
                 modifier = Modifier.width(150.dp).height(50.dp)
@@ -147,7 +163,31 @@ fun AppContent() {
 
         }
     }
+
+    // Диалог ошибок
+    if (showErrorDialog) {
+        androidx.compose.ui.window.Dialog(onDismissRequest = { showErrorDialog = false }) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(Color.White)
+                    .padding(16.dp)
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("Обнаружены ошибки", color = Color.Red, fontSize = 18.sp)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(errorDialogMessage, color = Color.Black, fontSize = 16.sp)
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Button(onClick = { showErrorDialog = false }) {
+                        Text("Закрыть")
+                    }
+                }
+            }
+        }
+    }
 }
+
 
 
 @Composable
