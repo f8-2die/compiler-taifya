@@ -5,8 +5,6 @@ object LexicalAnalyzer {
         "%", "!", "$", "loop", "true", "false"
     )
 
-
-
     val separators: List<String> = listOf(
         "<>", "=", "<", "<=", ">", ">=", "+", "-", "*", "/", ";", ",",
         "}", "{", "(", ")", "or", "and", "not"
@@ -172,13 +170,13 @@ object LexicalAnalyzer {
                             state = "H"
                             position--
                         } else {
-                            add(currentChar) // Добавляем точку, если её ещё не было
+                            add(currentChar)
                         }
                     }
                     else -> {
                         val number = buffer.toString()
                         val isInteger = number.matches(Regex("\\d+"))
-                        val isReal = number.matches(Regex("\\d+\\.\\d+")) // Числа с точкой
+                        val isReal = number.matches(Regex("\\d+\\.\\d+"))
 
                         if (isInteger) {
                             val representation = "число $number (%) 10-ричное в двоичном виде выглядит как ${number.toInt().toString(2)}"

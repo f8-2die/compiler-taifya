@@ -13,9 +13,11 @@ class SemanticAnalyzer(private val tokens: List<Token>) {
                 "let" -> index = handleAssignment(index, logs)
                 "if" -> index = handleCondition(index + 1, logs)
                 "for", "while" -> index = handleLoop(index, logs)
+                "do" -> index = handleDoWhile(index, logs)
                 else -> index++
             }
         }
+
         return logs
     }
 
@@ -32,7 +34,7 @@ class SemanticAnalyzer(private val tokens: List<Token>) {
                     type = currentToken.value
                     break
                 }
-                currentToken.value == "," -> {} // Просто продолжаем
+                currentToken.value == "," -> {}
                 currentToken.value == ";" -> break
                 else -> {
                     logs.add("Ошибка: неверный синтаксис объявления переменной на токене '${currentToken.value}'.")
@@ -97,59 +99,99 @@ class SemanticAnalyzer(private val tokens: List<Token>) {
 
         return currentIndex
     }
+    private fun handleDoWhile(index: Int, logs: MutableList<String>): Int {
+        var currentIndex = index + 1
+
+        logs.add("Обработка цикла 'do while'.")
+        val bodyStart = currentIndex
+        currentIndex = skipBody(currentIndex, logs)
+
+        if (currentIndex >= tokens.size || tokens[currentIndex].value != "while") {
+            logs.add("Ошибка: ожидалось 'while' после тела цикла 'do'.")
+            return currentIndex
+        }
+        currentIndex++
+
+        val (conditionType, conditionIndex) = analyzeExpression(currentIndex, logs)
+        currentIndex = conditionIndex
+
+        if (conditionType != "$") {
+            logs.add("Ошибка: условие в 'do while' должно быть булевым (тип $), но получен тип $conditionType.")
+            return currentIndex
+        }
+
+        if (currentIndex >= tokens.size || tokens[currentIndex].value != "loop") {
+            logs.add("Ошибка: ожидалось 'loop' после условия цикла 'do while'.")
+            return currentIndex
+        }
+        currentIndex++
+
+        logs.add("Цикл 'do while' успешно обработан: тело [$bodyStart-${currentIndex - 1}], условие [$conditionType].")
+        return currentIndex
+    }
+    private fun skipBody(index: Int, logs: MutableList<String>): Int {
+        var currentIndex = index
+
+        if (currentIndex < tokens.size && tokens[currentIndex].value == "{") {
+            currentIndex++
+            while (currentIndex < tokens.size && tokens[currentIndex].value != "}") {
+                currentIndex++
+            }
+            if (currentIndex >= tokens.size || tokens[currentIndex].value != "}") {
+                logs.add("Ошибка: ожидалась '}' в конце тела цикла.")
+                return currentIndex
+            }
+            currentIndex++
+        } else {
+            logs.add("Ошибка: ожидалось тело цикла, начинающееся с '{'.")
+        }
+
+        return currentIndex
+    }
+
     private fun handleLoop(index: Int, logs: MutableList<String>): Int {
         var currentIndex = index + 1
 
-        // Ожидаем открывающую скобку (
         if (currentIndex >= tokens.size || tokens[currentIndex].value != "(") {
             logs.add("Ошибка: ожидалась '(' после 'for'.")
             return currentIndex
         }
         currentIndex++
 
-        // Пропускаем выражение инициализации
         currentIndex = skipExpression(currentIndex)
 
-        // Ожидаем точку с запятой
         if (currentIndex >= tokens.size || tokens[currentIndex].value != ";") {
             logs.add("Ошибка: ожидалась ';' после инициализации итератора.")
             return currentIndex
         }
         currentIndex++
 
-        // Пропускаем условие
         currentIndex = skipExpression(currentIndex)
 
-        // Ожидаем точку с запятой
         if (currentIndex >= tokens.size || tokens[currentIndex].value != ";") {
             logs.add("Ошибка: ожидалась ';' после условия цикла.")
             return currentIndex
         }
         currentIndex++
 
-        // Пропускаем шаг итерации
         currentIndex = skipExpression(currentIndex)
 
-        // Ожидаем закрывающую скобку )
         if (currentIndex >= tokens.size || tokens[currentIndex].value != ")") {
             logs.add("Ошибка: ожидалась ')' после заголовка цикла.")
             return currentIndex
         }
         currentIndex++
 
-        // Ожидаем открывающую фигурную скобку {
         if (currentIndex >= tokens.size || tokens[currentIndex].value != "{") {
             logs.add("Ошибка: ожидалась '{' перед телом цикла.")
             return currentIndex
         }
         currentIndex++
 
-        // Пропускаем тело цикла
         while (currentIndex < tokens.size && tokens[currentIndex].value != "}") {
             currentIndex++
         }
 
-        // Ожидаем закрывающую фигурную скобку }
         if (currentIndex >= tokens.size || tokens[currentIndex].value != "}") {
             logs.add("Ошибка: ожидалась '}' в конце тела цикла.")
             return currentIndex
@@ -174,28 +216,27 @@ class SemanticAnalyzer(private val tokens: List<Token>) {
 
 
     private fun handleCondition(index: Int, logs: MutableList<String>): Int {
-        // Получаем тип выражения и новый индекс
         val (conditionType, newIndex) = analyzeExpression(index, logs)
 
-        // Проверяем тип условия
         if (conditionType != "$") {
             logs.add("Ошибка: условие должно быть булевым, но получен тип $conditionType.")
         } else {
             logs.add("Условие корректно.")
         }
 
-        // Возвращаем обновленный индекс
         return newIndex
     }
 
-
-
     private fun analyzeExpression(startIndex: Int, logs: MutableList<String>): Pair<String, Int> {
         var currentIndex = startIndex
-        var type: String? = null
+        var typeStack = mutableListOf<String?>()
+        var operatorStack = mutableListOf<String>()
+
+        fun getType(): String? = if (typeStack.isNotEmpty()) typeStack.last() else null
 
         while (currentIndex < tokens.size) {
             val currentToken = tokens[currentIndex]
+
             when (currentToken.type) {
                 TokenType.IDENTIFIER -> {
                     val variable = currentToken.value
@@ -203,56 +244,84 @@ class SemanticAnalyzer(private val tokens: List<Token>) {
                         logs.add("Ошибка: переменная $variable не описана!")
                         return Pair("unknown", currentIndex)
                     }
-                    if (type == null) {
-                        type = symbolTable[variable]
-                    } else if (type != symbolTable[variable]) {
-                        logs.add("Ошибка: несовместимые типы в выражении: $type и ${symbolTable[variable]}.")
-                        return Pair("unknown", currentIndex)
-                    }
+                    val varType = symbolTable[variable]
+                    typeStack.add(varType)
                 }
                 TokenType.NUMBER -> {
-                    // Получаем тип числа из значения токена
                     val tokenType = if (currentToken.value.contains(".")) "!" else "%"
-                    if (type == null) {
-                        type = tokenType
-                    } else if (type != tokenType) {
-                        logs.add("Ошибка: несовместимые типы в выражении: $type и $tokenType.")
-                        return Pair("unknown", currentIndex)
-                    }
+                    typeStack.add(tokenType)
                 }
-
                 TokenType.KEYWORD -> {
-                    if (listOf("true", "false").contains(currentToken.value)) {
-                        if (type == null) {
-                            type = "$"
-                        } else if (type != "$") {
-                            logs.add("Ошибка: булевое значение не соответствует типу $type.")
-                            return Pair("unknown", currentIndex)
-                        }
+                    if (currentToken.value in listOf("true", "false")) {
+                        typeStack.add("$")
+                    } else if (currentToken.value in listOf("and", "or", "not")) {
+                        operatorStack.add(currentToken.value)
+                    } else {
+                        break
                     }
                 }
-
                 TokenType.SYMBOL -> {
-                    if (currentToken.value in listOf("+", "-", "*", "/")) {
-                        if (type !in listOf("%", "!")) {
-                            logs.add("Ошибка: операции ${currentToken.value} недопустимы для типа $type.")
+                    val symbol = currentToken.value
+                    if (symbol == "(") {
+                        val (innerType, newIndex) = analyzeExpression(currentIndex + 1, logs)
+                        currentIndex = newIndex
+                        typeStack.add(innerType)
+                        if (currentIndex >= tokens.size || tokens[currentIndex].value != ")") {
+                            logs.add("Ошибка: ожидалась ')'.")
                             return Pair("unknown", currentIndex)
                         }
-                    } else if (currentToken.value in listOf("and", "or", "not")) {
-                        if (type != "$") {
-                            logs.add("Ошибка: операции ${currentToken.value} недопустимы для типа $type.")
-                            return Pair("unknown", currentIndex)
-                        }
+                    } else if (symbol == ")") {
+                        return Pair(getType() ?: "unknown", currentIndex)
+                    } else if (symbol in listOf("+", "-", "*", "/")) {
+                        operatorStack.add(symbol)
+                    } else if (symbol in listOf("<", ">", "=", "!=", "<=", ">=")) {
+                        operatorStack.add(symbol)
                     } else {
                         break
                     }
                 }
                 else -> break
             }
+
+            if (operatorStack.isNotEmpty() && typeStack.size >= 2) {
+                val rightType = typeStack.removeAt(typeStack.lastIndex)
+                val leftType = typeStack.removeAt(typeStack.lastIndex)
+                val operator = operatorStack.removeAt(operatorStack.lastIndex)
+
+                val resultType = when (operator) {
+                    "+", "-", "*", "/" -> {
+                        if (leftType == rightType && leftType in listOf("%", "!")) {
+                            leftType
+                        } else {
+                            logs.add("Ошибка: несовместимые типы в арифметической операции: $leftType и $rightType.")
+                            "unknown"
+                        }
+                    }
+                    "<", ">", "=", "!=", "<=", ">=" -> {
+                        if (leftType == rightType && leftType in listOf("%", "!", "$")) {
+                            "$" // Результат сравнения — логический тип
+                        } else {
+                            logs.add("Ошибка: несовместимые типы в операции сравнения: $leftType и $rightType.")
+                            "unknown"
+                        }
+                    }
+                    "and", "or" -> {
+                        if (leftType == "$" && rightType == "$") {
+                            "$"
+                        } else {
+                            logs.add("Ошибка: логические операции применимы только к булевым типам.")
+                            "unknown"
+                        }
+                    }
+                    else -> "unknown"
+                }
+                typeStack.add(resultType)
+            }
+
             currentIndex++
         }
-        return Pair(type ?: "unknown", currentIndex)
-    }
 
+        return Pair(getType() ?: "unknown", currentIndex)
+    }
 
 }

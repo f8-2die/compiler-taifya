@@ -21,7 +21,7 @@ class SyntaxAnalyzer(private val tokens: List<Token>) {
             logs.add("Начало программы найдено.")
 
             while (!check("end")) {
-                println("Текущий токен: ${currentToken().value}") // Лог текущего токена
+                println("Текущий токен: ${currentToken().value}")
 
                 if (checkType()) {
                     logs.add(parseTypeDeclaration())
@@ -49,7 +49,6 @@ class SyntaxAnalyzer(private val tokens: List<Token>) {
                     consume(";")
                 }
             }
-
 
             if (!consume("end")) {
                 throw SyntaxException("Программа должна заканчиваться 'end'.")
@@ -332,20 +331,24 @@ class SyntaxAnalyzer(private val tokens: List<Token>) {
         if (!consume("do")) {
             throw SyntaxException("Ожидалось 'do'.")
         }
+        println("Начало цикла do while")
 
         val body = parseOperator()
+        println("Тело цикла: $body")
 
         if (!consume("while")) {
             throw SyntaxException("Ожидалось 'while' после тела цикла.")
         }
 
         val condition = parseExpression()
+        println("Условие цикла: $condition")
 
         if (!consume("loop")) {
-            throw SyntaxException("Ожидалось 'loop' в конце цикла.")
+            throw SyntaxException("Ожидалось 'loop' в конце конструкции do while.")
         }
+        println("Конструкция do while завершена.")
 
-        return "Цикл do while: $body while $condition"
+        return "Цикл do while: тело {$body}, условие {$condition}"
     }
 
 }

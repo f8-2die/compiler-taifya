@@ -21,7 +21,7 @@ import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
 
 fun main() = application {
-    Window(onCloseRequest = ::exitApplication, title = "Лексический и синтаксический анализатор") {
+    Window(onCloseRequest = ::exitApplication, title = "Простой компилятор. Ларкин РПИС-11") {
         AppContent()
     }
 }
@@ -113,14 +113,12 @@ fun AppContent() {
                     logs = listOf("Запущен анализ...")
 
                     try {
-                        // Лексический анализ
                         val lexicalAnalysis = LexicalAnalyzer.analyzeText(inputText)
                         analysisResults = lexicalAnalysis["results"]?.toList() ?: emptyList()
                         numbers = lexicalAnalysis["numbers"]?.toList() ?: emptyList()
                         identifiers = lexicalAnalysis["identifiers"]?.toList() ?: emptyList()
                         logs = logs + "Лексический анализ завершен успешно."
 
-                        // Преобразование результатов анализа в токены
                         val tokens = analysisResults.map { result ->
                             val parts = result.removeSurrounding("(", ")").split(", ")
                             val tableNumber = parts[0].toInt()
@@ -135,16 +133,13 @@ fun AppContent() {
                             }
                         }
 
-                        // Синтаксический анализ
                         val syntaxAnalyzer = SyntaxAnalyzer(tokens)
                         logs = logs + syntaxAnalyzer.analyze()
 
-                        // Семантический анализ
                         val semanticAnalyzer = SemanticAnalyzer(tokens)
                         val semanticLogs = semanticAnalyzer.analyze()
                         logs = logs + semanticLogs
 
-                        // Проверка на ошибки
                         val errors = logs.filter { it.contains("Ошибка") }
                         if (errors.isNotEmpty()) {
                             errorDialogMessage = errors.joinToString("\n")
@@ -164,7 +159,6 @@ fun AppContent() {
         }
     }
 
-    // Диалог ошибок
     if (showErrorDialog) {
         androidx.compose.ui.window.Dialog(onDismissRequest = { showErrorDialog = false }) {
             Box(
@@ -187,8 +181,6 @@ fun AppContent() {
         }
     }
 }
-
-
 
 @Composable
 fun TableWithHeader(title: String, items: List<String>, modifier: Modifier = Modifier) {

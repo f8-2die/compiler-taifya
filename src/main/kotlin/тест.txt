@@ -1,0 +1,27 @@
+begin
+    dim x, y %;
+    dim q, w !;
+    dim e $;
+    let e = true; 
+    let q = 11.5; 
+    let w = q + 0.5; 
+    let x = 10; 
+    let y = x + 5; 
+    (* я комментарий *)
+    if (y > 0) then
+        let y = y - 1; 
+    else
+        let e = false; 
+    end_else;
+
+    for (let i = 0; i < 10; i = i + 1) {
+        let x = x + i; 
+    }
+
+    do {
+        let y = y - 1; 
+    } while (y > 0) loop;
+
+    input(x, y); 
+    output(x, y); 
+end
