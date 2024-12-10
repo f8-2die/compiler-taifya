@@ -163,15 +163,28 @@ fun AppContent() {
         androidx.compose.ui.window.Dialog(onDismissRequest = { showErrorDialog = false }) {
             Box(
                 modifier = Modifier
-                    .fillMaxWidth()
+                    .width(400.dp) // Установите фиксированную ширину
                     .clip(RoundedCornerShape(8.dp))
                     .background(Color.White)
                     .padding(16.dp)
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("Обнаружены ошибки", color = Color.Red, fontSize = 18.sp)
+                    Text(
+                        text = "Обнаружены ошибки",
+                        color = Color.Red,
+                        fontSize = 18.sp,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
                     Spacer(modifier = Modifier.height(8.dp))
-                    Text(errorDialogMessage, color = Color.Black, fontSize = 16.sp)
+                    Text(
+                        text = errorDialogMessage,
+                        color = Color.Black,
+                        fontSize = 14.sp,
+                        modifier = Modifier.fillMaxWidth(),
+                        lineHeight = 20.sp, // Регулирует межстрочный интервал
+                        softWrap = true, // Включает перенос текста
+                        maxLines = Int.MAX_VALUE // Убирает ограничение строк
+                    )
                     Spacer(modifier = Modifier.height(16.dp))
                     Button(onClick = { showErrorDialog = false }) {
                         Text("Закрыть")
@@ -180,6 +193,7 @@ fun AppContent() {
             }
         }
     }
+
 }
 
 @Composable

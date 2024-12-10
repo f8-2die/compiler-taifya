@@ -78,6 +78,7 @@ object LexicalAnalyzer {
         }
     }
 
+
     fun analyzeText(inputText: String): Map<String, List<String>> {
         clearTables()
         nill()
@@ -143,6 +144,12 @@ object LexicalAnalyzer {
 
                 "I" -> when {
                     currentChar?.isLetterOrDigit() == true || currentChar == '_' -> add(currentChar)
+                    buffer.toString().matches(Regex("\\d+[bho]")) -> {
+                        // Обработка числового формата
+                        val number = buffer.toString()
+                        state = "NUM"
+                        position-- // Вернуться для обработки в NUM
+                    }
                     else -> {
                         val bufferContent = buffer.toString()
                         val reservedIndex = look(reservedWords)
@@ -162,8 +169,46 @@ object LexicalAnalyzer {
                     }
                 }
 
+
                 "NUM" -> when {
                     currentChar?.isDigit() == true -> add(currentChar)
+                    currentChar in listOf('b', 'o', 'h') -> {
+                        // Проверяем суффикс
+                        if (currentChar != null) {
+                            add(currentChar)
+                        }
+                        val number = buffer.toString()
+                        when {
+                            isValidNumber(number, 2) -> {
+                                val binaryValue = number.removeSuffix("b")
+                                val representation = "число $binaryValue (бинарное) в двоичном виде выглядит как $binaryValue"
+                                if (!numbers.contains(representation)) {
+                                    numbers.add(representation)
+                                }
+                                out(3, numbers.indexOf(representation) + 1)
+                            }
+                            isValidNumber(number, 8) -> {
+                                val octalValue = number.removeSuffix("o")
+                                val representation = "число $octalValue (восьмеричное) в десятичном виде выглядит как ${Integer.parseInt(octalValue, 8)}"
+                                if (!numbers.contains(representation)) {
+                                    numbers.add(representation)
+                                }
+                                out(3, numbers.indexOf(representation) + 1)
+                            }
+                            isValidNumber(number, 16) -> {
+                                val hexValue = number.removeSuffix("h")
+                                val representation = "число $hexValue (шестнадцатеричное) в десятичном виде выглядит как ${Integer.parseInt(hexValue, 16)}"
+                                if (!numbers.contains(representation)) {
+                                    numbers.add(representation)
+                                }
+                                out(3, numbers.indexOf(representation) + 1)
+                            }
+                            else -> {
+                                results.add("Ошибка в числе: $number")
+                            }
+                        }
+                        state = "H"
+                    }
                     currentChar == '.' -> {
                         if (buffer.contains(".")) {
                             results.add("Ошибка: некорректное число $buffer$currentChar.")
@@ -175,31 +220,32 @@ object LexicalAnalyzer {
                     }
                     else -> {
                         val number = buffer.toString()
-                        val isInteger = number.matches(Regex("\\d+"))
-                        val isReal = number.matches(Regex("\\d+\\.\\d+"))
-
-                        if (isInteger) {
-                            val representation = "число $number (%) 10-ричное в двоичном виде выглядит как ${number.toInt().toString(2)}"
-                            if (!numbers.contains(representation)) {
-                                numbers.add(representation)
+                        if (isValidNumber(number, 10)) {
+                            if (number.contains(".")) {
+                                val decimal = number.toDouble()
+                                val binary = toBinaryWithFraction(decimal)
+                                val representation = "число $decimal (!) 10-ричное в двоичном виде выглядит как $binary"
+                                if (!numbers.contains(representation)) {
+                                    numbers.add(representation)
+                                }
+                                out(3, numbers.indexOf(representation) + 1)
+                            } else {
+                                val representation = "число $number (%) 10-ричное в двоичном виде выглядит как ${number.toInt().toString(2)}"
+                                if (!numbers.contains(representation)) {
+                                    numbers.add(representation)
+                                }
+                                out(3, numbers.indexOf(representation) + 1)
                             }
-                            out(3, numbers.indexOf(representation) + 1)
-                        } else if (isReal) {
-                            val decimal = number.toDouble()
-                            val binary = toBinaryWithFraction(decimal)
-                            val representation = "число $decimal (!) 10-ричное в двоичном виде выглядит как $binary"
-                            if (!numbers.contains(representation)) {
-                                numbers.add(representation)
-                            }
-                            out(3, numbers.indexOf(representation) + 1)
                         } else {
                             results.add("Ошибка в числе: $number")
                         }
-
                         state = "H"
                         position--
                     }
                 }
+
+
+
             }
             position++
         }

@@ -94,9 +94,6 @@ class SemanticAnalyzer(private val tokens: List<Token>) {
         } else {
             logs.add("Присваивание переменной $variable успешно.")
         }
-
-
-
         return currentIndex
     }
     private fun handleDoWhile(index: Int, logs: MutableList<String>): Int {
@@ -202,8 +199,6 @@ class SemanticAnalyzer(private val tokens: List<Token>) {
         return currentIndex
     }
 
-
-
     private fun skipExpression(currentIndex: Int): Int {
         var index = currentIndex
         while (index < tokens.size && tokens[index].value != ";" && tokens[index].value != ")" && tokens[index].value != "{") {
@@ -211,9 +206,6 @@ class SemanticAnalyzer(private val tokens: List<Token>) {
         }
         return index
     }
-
-
-
 
     private fun handleCondition(index: Int, logs: MutableList<String>): Int {
         val (conditionType, newIndex) = analyzeExpression(index, logs)
@@ -248,9 +240,17 @@ class SemanticAnalyzer(private val tokens: List<Token>) {
                     typeStack.add(varType)
                 }
                 TokenType.NUMBER -> {
-                    val tokenType = if (currentToken.value.contains(".")) "!" else "%"
+                    val tokenValue = currentToken.value
+                    val tokenType = when {
+                        tokenValue.endsWith("b") -> "%"
+                        tokenValue.endsWith("o") -> "%"
+                        tokenValue.endsWith("h") -> "%"
+                        tokenValue.contains(".") -> "!"
+                        else -> "%"
+                    }
                     typeStack.add(tokenType)
                 }
+
                 TokenType.KEYWORD -> {
                     if (currentToken.value in listOf("true", "false")) {
                         typeStack.add("$")
@@ -292,27 +292,36 @@ class SemanticAnalyzer(private val tokens: List<Token>) {
                     "+", "-", "*", "/" -> {
                         if (leftType == rightType && leftType in listOf("%", "!")) {
                             leftType
+                        } else if (leftType == "%" && rightType == "!") {
+                            "!"
+                        } else if (leftType == "!" && rightType == "%") {
+                            "!"
                         } else {
                             logs.add("Ошибка: несовместимые типы в арифметической операции: $leftType и $rightType.")
                             "unknown"
                         }
                     }
+
                     "<", ">", "=", "!=", "<=", ">=" -> {
                         if (leftType == rightType && leftType in listOf("%", "!", "$")) {
-                            "$" // Результат сравнения — логический тип
+                            "$"
+                        } else if ((leftType == "%" && rightType == "!") || (leftType == "!" && rightType == "%")) {
+                            "$"
                         } else {
                             logs.add("Ошибка: несовместимые типы в операции сравнения: $leftType и $rightType.")
                             "unknown"
                         }
                     }
+
                     "and", "or" -> {
                         if (leftType == "$" && rightType == "$") {
-                            "$"
+                            "$" // Булевый результат
                         } else {
                             logs.add("Ошибка: логические операции применимы только к булевым типам.")
                             "unknown"
                         }
                     }
+
                     else -> "unknown"
                 }
                 typeStack.add(resultType)

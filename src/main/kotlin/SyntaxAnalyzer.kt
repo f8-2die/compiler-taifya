@@ -158,9 +158,12 @@ class SyntaxAnalyzer(private val tokens: List<Token>) {
             expression.append(currentToken().value)
             currentIndex++
         } else if (checkNumber()) {
-            expression.append(currentToken().value)
+            val number = currentToken().value
+            expression.append(number)
             currentIndex++
-        } else if (check("true") || check("false")) { // Добавить обработку булевых значений
+        }
+
+        else if (check("true") || check("false")) {
             expression.append(currentToken().value)
             currentIndex++
         } else {
@@ -176,8 +179,19 @@ class SyntaxAnalyzer(private val tokens: List<Token>) {
         return expression.toString()
     }
 
-    private fun checkNumber(): Boolean =
-        currentIndex < tokens.size && tokens[currentIndex].type == TokenType.NUMBER
+    private fun checkNumber(): Boolean {
+        val currentTokenValue = currentToken().value
+        return currentIndex < tokens.size &&
+                (currentToken().type == TokenType.NUMBER ||
+                        isNumberInBase(currentTokenValue))
+    }
+
+    private fun isNumberInBase(number: String): Boolean {
+        return number.matches(Regex("[01]+b")) ||
+                number.matches(Regex("[0-7]+o")) ||
+                number.matches(Regex("[0-9A-Fa-f]+h")) ||
+                number.matches(Regex("\\d+(\\.\\d+)?"))
+    }
 
     private fun parseIfStatement(): String {
         if (!consume("if")) {
@@ -206,7 +220,6 @@ class SyntaxAnalyzer(private val tokens: List<Token>) {
         }
         return "Условный оператор: if $condition then $thenBranch else $elseBranch"
     }
-
 
     private fun parseOperator(): String {
         val result = when {
