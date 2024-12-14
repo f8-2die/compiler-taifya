@@ -20,6 +20,16 @@ class SemanticAnalyzer(private val tokens: List<Token>) {
 
         return logs
     }
+    fun getUpdatedIdentifiers(rawIdentifiers: List<String>): List<String> {
+        return rawIdentifiers.map { identifier ->
+            val type = symbolTable[identifier]
+            if (type != null) {
+                "$identifier - переменная описана и ей присвоен тип $type"
+            } else {
+                "$identifier - переменная не описана"
+            }
+        }
+    }
 
     private fun handleDeclaration(index: Int, logs: MutableList<String>): Int {
         var currentIndex = index + 1
@@ -315,7 +325,7 @@ class SemanticAnalyzer(private val tokens: List<Token>) {
 
                     "and", "or" -> {
                         if (leftType == "$" && rightType == "$") {
-                            "$" // Булевый результат
+                            "$"
                         } else {
                             logs.add("Ошибка: логические операции применимы только к булевым типам.")
                             "unknown"

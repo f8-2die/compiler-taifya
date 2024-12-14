@@ -48,17 +48,29 @@ object LexicalAnalyzer {
         val integerPart = decimal.toInt()
         val fractionalPart = decimal - integerPart
 
+        // Перевод целой части в двоичное
         val binaryIntegerPart = integerPart.toString(2)
-        val binaryFractionPart = StringBuilder()
 
+        // Перевод дробной части в двоичное
+        val binaryFractionPart = StringBuilder()
         var fraction = fractionalPart
-        var iterations = 0
-        while (fraction > 0 && iterations < 10) {
+        val seenRemainders = mutableMapOf<Double, Int>()
+
+        while (fraction > 0) {
+            if (seenRemainders.containsKey(fraction)) {
+                val startCycle = seenRemainders[fraction]!!
+                binaryFractionPart.insert(startCycle, "(")
+                binaryFractionPart.append(")")
+                break
+            }
+
+            seenRemainders[fraction] = binaryFractionPart.length
+
             fraction *= 2
             val bit = fraction.toInt()
             binaryFractionPart.append(bit)
+
             fraction -= bit
-            iterations++
         }
 
         return if (binaryFractionPart.isNotEmpty()) {
@@ -67,6 +79,7 @@ object LexicalAnalyzer {
             binaryIntegerPart
         }
     }
+
 
     private fun isValidNumber(input: String, base: Int): Boolean {
         return when (base) {
@@ -77,7 +90,6 @@ object LexicalAnalyzer {
             else -> false
         }
     }
-
 
     fun analyzeText(inputText: String): Map<String, List<String>> {
         clearTables()
@@ -113,7 +125,7 @@ object LexicalAnalyzer {
                         if (separator != null) {
                             val positionInTable = separators.indexOf(separator) + 1
                             out(2, positionInTable)
-                            position += separator.length - 1 // Сдвигаем позицию на длину разделителя
+                            position += separator.length - 1
                         } else {
                             results.add("Ошибка на символе: $currentChar")
                         }
@@ -141,14 +153,12 @@ object LexicalAnalyzer {
                     }
                 }
 
-
                 "I" -> when {
                     currentChar?.isLetterOrDigit() == true || currentChar == '_' -> add(currentChar)
                     buffer.toString().matches(Regex("\\d+[bho]")) -> {
-                        // Обработка числового формата
                         val number = buffer.toString()
                         state = "NUM"
-                        position-- // Вернуться для обработки в NUM
+                        position--
                     }
                     else -> {
                         val bufferContent = buffer.toString()
@@ -173,7 +183,7 @@ object LexicalAnalyzer {
                 "NUM" -> when {
                     currentChar?.isDigit() == true -> add(currentChar)
                     currentChar in listOf('b', 'o', 'h') -> {
-                        // Проверяем суффикс
+
                         if (currentChar != null) {
                             add(currentChar)
                         }
@@ -243,8 +253,6 @@ object LexicalAnalyzer {
                         position--
                     }
                 }
-
-
 
             }
             position++

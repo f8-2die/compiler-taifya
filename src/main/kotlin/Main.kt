@@ -84,7 +84,6 @@ fun AppContent() {
             }
         }
 
-        // Логи
         BoxWithHeader(title = "Логи", modifier = Modifier.height(150.dp).fillMaxWidth()) {
             val logListState = rememberLazyListState()
             Row(modifier = Modifier.fillMaxSize()) {
@@ -116,7 +115,7 @@ fun AppContent() {
                         val lexicalAnalysis = LexicalAnalyzer.analyzeText(inputText)
                         analysisResults = lexicalAnalysis["results"]?.toList() ?: emptyList()
                         numbers = lexicalAnalysis["numbers"]?.toList() ?: emptyList()
-                        identifiers = lexicalAnalysis["identifiers"]?.toList() ?: emptyList()
+                        val rawIdentifiers = lexicalAnalysis["identifiers"]?.toList() ?: emptyList()
                         logs = logs + "Лексический анализ завершен успешно."
 
                         val tokens = analysisResults.map { result ->
@@ -140,6 +139,9 @@ fun AppContent() {
                         val semanticLogs = semanticAnalyzer.analyze()
                         logs = logs + semanticLogs
 
+                        // Обновляем идентификаторы с типами
+                        identifiers = semanticAnalyzer.getUpdatedIdentifiers(rawIdentifiers)
+
                         val errors = logs.filter { it.contains("Ошибка") }
                         if (errors.isNotEmpty()) {
                             errorDialogMessage = errors.joinToString("\n")
@@ -156,6 +158,7 @@ fun AppContent() {
                 Text("Анализ")
             }
 
+
         }
     }
 
@@ -163,7 +166,7 @@ fun AppContent() {
         androidx.compose.ui.window.Dialog(onDismissRequest = { showErrorDialog = false }) {
             Box(
                 modifier = Modifier
-                    .width(400.dp) // Установите фиксированную ширину
+                    .width(400.dp)
                     .clip(RoundedCornerShape(8.dp))
                     .background(Color.White)
                     .padding(16.dp)
@@ -181,9 +184,9 @@ fun AppContent() {
                         color = Color.Black,
                         fontSize = 14.sp,
                         modifier = Modifier.fillMaxWidth(),
-                        lineHeight = 20.sp, // Регулирует межстрочный интервал
-                        softWrap = true, // Включает перенос текста
-                        maxLines = Int.MAX_VALUE // Убирает ограничение строк
+                        lineHeight = 20.sp,
+                        softWrap = true,
+                        maxLines = Int.MAX_VALUE
                     )
                     Spacer(modifier = Modifier.height(16.dp))
                     Button(onClick = { showErrorDialog = false }) {

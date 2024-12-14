@@ -95,7 +95,7 @@ class SyntaxAnalyzer(private val tokens: List<Token>) {
             throw SyntaxException("Ожидался идентификатор после типа.")
         }
         val identifier = currentToken().value
-        println("Объявлена переменная: $identifier с типом $type") // Лог
+        println("Объявлена переменная: $identifier с типом $type")
         currentIndex++
         return "Объявлена переменная: $identifier с типом $type."
     }
@@ -108,13 +108,13 @@ class SyntaxAnalyzer(private val tokens: List<Token>) {
             throw SyntaxException("Ожидался идентификатор после 'let'.")
         }
         val identifier = currentToken().value
-        println("Присваивание переменной: $identifier") // Лог
+        println("Присваивание переменной: $identifier")
         currentIndex++
         if (!consume("=")) {
             throw SyntaxException("Ожидался оператор '=' после идентификатора.")
         }
         val expression = parseExpression()
-        println("Присваивание завершено: $identifier = $expression") // Лог
+        println("Присваивание завершено: $identifier = $expression")
         return "Присваивание: $identifier = $expression"
     }
 
@@ -170,12 +170,15 @@ class SyntaxAnalyzer(private val tokens: List<Token>) {
             throw SyntaxException("Неверное выражение: ${currentToken().value}")
         }
 
-        while (check("+") || check("-") || check("or") || check("*") || check("/") || check("and") || check("<") || check(">") || check("=")) {
+        while (check("+") || check("-")
+            || check("or") || check("*")
+            || check("/") || check("and")
+            || check("<") || check(">")
+            || check("=")) {
             expression.append(" ").append(currentToken().value)
             currentIndex++
             expression.append(" ").append(parseExpression())
         }
-
         return expression.toString()
     }
 
